@@ -1,6 +1,8 @@
 (require 'helm)
 (require 'request)
 (require 's)
+(require 'dash)
+(require 'ht)
 (require 'widget)
 
 ;; Experimental quarkus.el package for providing some of the same tooling that vs code does.
@@ -12,48 +14,49 @@
   :group 'quarkus)
 
 
-;; TODO: maybe we can have generation of Quarkus projects directly in Emacs? Instead of a cli?
-;; maybe that as a first step?
+;; api/extensions is the path to get the extensions
+;; https://editor.swagger.io/?url=https://code.quarkus.io/q/openapi
 
 ;; TODO: extension presets for generator? 
 
-;; TODO: function to get the availbable quarkus platform versions
-;;       function to fetch available extensions, which we can use helm to search through
-;; TODO: maybe create a macro or function if we reuse a lot here..
-;;       maybe that one can return a json object directly to us so it is somewhat intuitive?
 ;; Timeouts? (should we maybe set local the request-timeout variable or something?  or just "let" it? 
-(defun quarkus--get-platform-versions ()
-  ;; TODO: best way to return 
-  (request (s-concat quarkus-code-io-url "/api/streams")
-    :headers '(("accept" . "application/json"))
-    :sync t
-    :parser (lambda ()
-              (let ((json-object-type 'hash-table)
-                    (json-array-type 'list))
-                (json-read)))
-    :success (cl-function
-              (lambda (&key data &allow-other-keys)
-                (message "Data: %s" data)))
-    :error (cl-function
-            (lambda ()
-              (message "Failed to fetch Quarkus Platform information!")))))
+(defmacro quarkus--get-request (&rest processor)
+  (cl-destructuring-bind
+      (name -> function)
+      processor
+    (if (or (null name) (null function))
+        (error "Macro takes the form: name -> processing-function")
+      `(let (result)
+         (request (s-concat quarkus-code-io-url "/api/streams")
+           :headers '(("accept" . "application/json"))
+           :sync t
+           :parser (lambda ()
+                     (let ((json-object-type 'hash-table)
+                           (json-array-type 'list))
+                       (json-read)))
+           :success (cl-function
+                     (lambda (&key data &allow-other-keys)
+                       (setq result ,function)))
+           :error (cl-function
+                   (lambda (&rest _ignore)
+                     (message "Failed to fetch Quarkus Platform information!"))))
+         result))))
 
-(let ((test 1))
-  (quarkus--get-platform-versions)
-  test)
+(defun quarkus--get-platform-versions ()
+  (quarkus--get-request
+   data -> (-map (lambda (version-info)
+                   (ht-get version-info "platformVersion"))
+                 data)))
 
 (defmacro quarkus--set-text-field (field)
   `(lambda (self &rest _ignore)
      (setq-local ,field (widget-value self))))
 
-;; extensions can we create a menu in the best way in Emacs?
-;; use forms? https://www.gnu.org/software/emacs/manual/html_mono/forms.html
-;; or widgets? probably better? https://www.gnu.org/software/emacs/manual/html_mono/widget.html
 ;; can we invoke helm when a field is selected?
-;; TODO: how ot make the text and everything read only?
 (defun quarkus-create ()
   (interactive)
-  (let ((creation-form (get-buffer-create "*Quarkus Generate Project*")))
+  (let ((creation-form (get-buffer-create "*Quarkus Generate Project*"))
+        (platform-versions (quarkus--get-platform-versions)))
     (with-current-buffer creation-form
       (erase-buffer)
       (remove-overlays)
@@ -61,7 +64,9 @@
       ;; Set variables (we move out of let-scope when starting widget-mode it seems)
       (setq-local group-id "com.example"
                   artifact-id "demo"
-                  version "1.0.0-SNAPSHOT")
+                  version "1.0.0-SNAPSHOT"
+                  platform (car platform-versions)
+                  java-version "17")
       
       ;; TODO: any way to set the size? so we get a bigger heading?
       (widget-insert "~ Quarkus generate project ~\n\n")
@@ -78,18 +83,17 @@
                      :notify (quarkus--set-text-field version)
                      version)
       (widget-insert "\nQuarkus platform version:\n")
-      (widget-create 'radio-button-choice
-                     :value "test2"
-                     '(item "KENOBI")
-                     '(item "test2"))
-      ;; TODO: checkbox with the Quarkus platform version with a sensible default selected?
-      ;; TODO: Checkbox with build tool (maven vs gradle?)
-      ;; TODO: checkbox with java version?
-      ;; TODO: dependenceies? use helm for beautiful selection of them. Allow multiple select
+      (apply #'widget-create (append `(radio-button-choice
+                                       :notify (quarkus--set-text-field platform)
+                                       :value ,platform)
+                                     (-map (lambda (x)
+                                             `(item ,x))
+                                           platform-versions)))
+      
       (widget-insert "\nJava version:\n")
       (widget-create 'radio-button-choice
-                     :value "test2"
-                     '(item "11")
+                     :notify (quarkus--set-text-field version)
+                     :value java-version
                      '(item "17")
                      '(item "21"))
 
@@ -98,11 +102,15 @@
                      :value "Maven"
                      '(item "Maven")
                      '(item "Gradle"))
+
+      ;; TODO: dependenceies? use helm for beautiful selection of them. Allow multiple select
       
       (widget-insert "\n")
       (widget-create 'push-button
                      :notify (lambda (&rest _ignore)
-                               (message "group id: %s" group-id))
+                               ;; TODO: should probably let the user select a target directory
+                               ;; TODO: unzip directly?
+                               (message "Probably generating app lol"))
                      "Generate app!")
       (widget-setup)
       (use-local-map widget-keymap)
