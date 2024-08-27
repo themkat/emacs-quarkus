@@ -56,8 +56,10 @@
 (defun quarkus-create ()
   (interactive)
   (let ((creation-form (get-buffer-create "*Quarkus Generate Project*"))
-        (platform-versions (quarkus--get-platform-versions)))
+        (platform-versions (quarkus--get-platform-versions))
+        (inhibit-read-only t))
     (with-current-buffer creation-form
+      (kill-all-local-variables)
       (erase-buffer)
       (remove-overlays)
 
