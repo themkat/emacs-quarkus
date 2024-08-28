@@ -20,14 +20,14 @@
 ;; TODO: extension presets for generator? 
 
 ;; Timeouts? (should we maybe set local the request-timeout variable or something?  or just "let" it? 
-(defmacro quarkus--get-request (&rest processor)
+(defmacro quarkus--get-request (url &rest processor)
   (cl-destructuring-bind
       (name -> function)
       processor
     (if (or (null name) (null function))
-        (error "Macro takes the form: name -> processing-function")
+        (error "Macro takes the form: url name -> processing-function")
       `(let (result)
-         (request (s-concat quarkus-code-io-url "/api/streams")
+         (request (s-concat quarkus-code-io-url ,url)
            :headers '(("accept" . "application/json"))
            :sync t
            :parser (lambda ()
@@ -35,7 +35,7 @@
                            (json-array-type 'list))
                        (json-read)))
            :success (cl-function
-                     (lambda (&key data &allow-other-keys)
+                     (lambda (&key ,name &allow-other-keys)
                        (setq result ,function)))
            :error (cl-function
                    (lambda (&rest _ignore)
@@ -44,6 +44,7 @@
 
 (defun quarkus--get-platform-versions ()
   (quarkus--get-request
+   "/api/streams"
    data -> (-map (lambda (version-info)
                    (ht-get version-info "platformVersion"))
                  data)))
