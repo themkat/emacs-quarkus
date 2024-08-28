@@ -46,7 +46,7 @@
   (quarkus--get-request
    "/api/streams"
    data -> (-map (lambda (version-info)
-                   (ht-get version-info "platformVersion"))
+                   (ht-get version-info "key"))
                  data)))
 
 (defun quarkus--get-extensions ()
@@ -98,7 +98,7 @@
                      version)
       (widget-insert "\nQuarkus platform version:\n")
       (apply #'widget-create (append `(radio-button-choice
-                                       :notify (quarkus--set-text-field platform)
+                                       :notify ,(quarkus--set-text-field platform)
                                        :value ,platform)
                                      (-map (lambda (x)
                                              `(item ,x))
@@ -113,19 +113,32 @@
 
       (widget-insert "\nBuild tool:\n")
       (widget-create 'radio-button-choice
-                     :value "Maven"
+                     :notify (quarkus--set-text-field build-tool)
+                     :value build-tool
                      '(item "Maven")
-                     '(item "Gradle"))
-
-      ;; TODO: dependenceies? use helm for beautiful selection of them. Allow multiple select
+                     '(item "Gradle")
+                     '(item "Gradle Kotlin DSL"))
       
       (widget-insert "\n")
       (widget-create 'push-button
                      :notify (lambda (&rest _ignore)
                                ;; TODO: should probably let the user select a target directory
-                               ;; TODO: unzip directly?
-                               (message "Probably generating app lol"))
-                     "Generate app!")
+                               ;; TODO: can probably put the download logic into its own function to clean up a bit
+                               (shell-command (format "curl -s -X POST '%s/api/download' -H \"Content-Type: application/json\" -H \"accept: */*\" -d '%s' | bsdtar -xf-"
+                                                      quarkus-code-io-url
+                                                      (json-serialize (ht ("streamKey" platform)
+                                                                          ("groupId" group-id)
+                                                                          ("artifactId" artifact-id)
+                                                                          ("version" version)
+                                                                          ("buildTool" (s-upcase (s-snake-case build-tool)))
+                                                                          ("javaVersion" java-version)
+                                                                          
+                                                                          ))
+                                                      )
+                                              (get-buffer-create "BAJS"))
+                               ;;(dired "/Users/marie")
+                               )
+                     "Generate app! ")
       (widget-setup)
       (use-local-map widget-keymap)
       (switch-to-buffer creation-form))))
