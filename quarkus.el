@@ -49,6 +49,11 @@
                    (ht-get version-info "platformVersion"))
                  data)))
 
+(defun quarkus--get-extensions ()
+  (quarkus--get-request
+   "/api/extensions"
+   data -> data))
+
 (defmacro quarkus--set-text-field (field)
   `(lambda (self &rest _ignore)
      (setq-local ,field (widget-value self))))
@@ -56,6 +61,7 @@
 ;; can we invoke helm when a field is selected?
 (defun quarkus-create ()
   (interactive)
+  (message "Fetching Quarkus information, please wait...")
   (let ((creation-form (get-buffer-create "*Quarkus Generate Project*"))
         (platform-versions (quarkus--get-platform-versions))
         (inhibit-read-only t))
@@ -69,7 +75,12 @@
                   artifact-id "demo"
                   version "1.0.0-SNAPSHOT"
                   platform (car platform-versions)
-                  java-version "17")
+                  java-version "17"
+                  build-tool "Maven"
+                  selected-extensions '()
+
+                  ;; Extension list cached while we are generating application
+                  extensions (quarkus--get-extensions))
       
       ;; TODO: any way to set the size? so we get a bigger heading?
       (widget-insert "~ Quarkus generate project ~\n\n")
