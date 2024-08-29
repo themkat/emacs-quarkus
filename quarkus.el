@@ -49,6 +49,7 @@
                    (ht-get version-info "key"))
                  data)))
 
+;; TODO: check if we should rewrite to only get extensions supporting our current version
 (defun quarkus--get-extensions ()
   (quarkus--get-request
    "/api/extensions"
@@ -149,6 +150,41 @@
 ;; (can the above language server also complete yaml?)
 
 ;; TODO: is requiring the quarkus cli okay here?
+
+;; TODO: check if there is a better way than using the Quarkus CLI and parsing results.
+(defun quarkus-add-extension ()
+  (interactive)
+  (let* ((current-path (file-name-directory buffer-file-name))
+         (project-root (or (lsp-workspace-root)
+                           (locate-dominating-file current-path
+                                                   "pom.xml")
+                           (locate-dominating-file current-path
+                                                   "build.gradle")
+                           (locate-dominating-file current-path
+                                                   "build.gradle.kts")
+                           (error "Probably not a Quarkus project you dipshit")))
+         ;; TODO: some extensions give errors, so we should filter out the ones that can be installed. Or at least check that they can be installed for our version 
+         (extensions (quarkus--get-extensions)))
+    (helm :sources (helm-build-sync-source "Extensions"
+                     :action (lambda (&rest _ignore)
+                               ;; TODO: maybe we could have different actions? One being go to guide? the API provides lots of cool small thingys like that
+                               ;;       (how to keep this extension view open)
+                               ;; TODO: add extension to project
+                               (shell-command (format "cd %s && quarkus extension add %s"
+                                                      project-root
+                                                      (s-join ","
+                                                              (helm-marked-candidates))))
+                               (message "Added Quarkus extension(s)!"))
+                     :persistent-help "Select extensions"
+                     :candidates (-map (lambda (x)
+                                         ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
+                                         (cons (format "%-50s%s"
+                                                       (ht-get x "name")
+                                                       (s-truncate 100 (ht-get x "description")))
+                                               (ht-get x "id")))
+                                       extensions)
+                     )
+          :buffer "*Quarkus Extensions*")))
 
 
 ;; TODO: can we give a hint to the user that they might want to restart their lsp if it doesn't automatically listen to pom.xml changes (or the gradle alternative?)
