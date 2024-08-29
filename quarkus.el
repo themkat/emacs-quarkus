@@ -1,3 +1,29 @@
+;;; quarkus.el --- Quarkus tooling -*- lexical-binding: t; -*-
+
+;; URL: https://github.com/themkat/emacs-quarkus
+;; Version: 0.0.1
+;; Package-Requires: ((emacs "24.4") (request "0.3.2") (ht "2.3") (helm "3.8.6") (s "1.13.0"))
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Provides various Quarkus tooling like the other plugins for IntellIJ IDEA and VSCode does.
+;; This includes, but is not limited to, generation of projects, easily adding dependencies
+;;  and minor LSP configuration for property files.
+
+;;; Code:
 (require 'helm)
 (require 'request)
 (require 's)
@@ -220,3 +246,4 @@
 ;; TODO: can we give a hint to the user that they might want to restart their lsp if it doesn't automatically listen to pom.xml changes (or the gradle alternative?)
 
 (provide 'quarkus)
+;;; quarkus.el ends here
