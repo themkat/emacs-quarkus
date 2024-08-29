@@ -166,15 +166,18 @@
          ;; TODO: some extensions give errors, so we should filter out the ones that can be installed. Or at least check that they can be installed for our version 
          (extensions (quarkus--get-extensions)))
     (helm :sources (helm-build-sync-source "Extensions"
-                     :action (lambda (&rest _ignore)
-                               ;; TODO: maybe we could have different actions? One being go to guide? the API provides lots of cool small thingys like that
-                               ;;       (how to keep this extension view open)
-                               ;; TODO: add extension to project
-                               (shell-command (format "cd %s && quarkus extension add %s"
-                                                      project-root
-                                                      (s-join ","
-                                                              (helm-marked-candidates))))
-                               (message "Added Quarkus extension(s)!"))
+                     :action `(("Add extension(s)" . (lambda (&rest _ignore)
+                                                       (shell-command (format "cd %s && quarkus extension add %s"
+                                                                              ,project-root
+                                                                              (s-join ","
+                                                                                      (helm-marked-candidates))))
+                                                       (message "Added Quarkus extension(s)!")))
+                               ("Open documentation" . (lambda (selected &rest _ignore)
+                                                         (browse-url (ht-get (-find (lambda (ext)
+                                                                                      (s-equals? (ht-get ext "id")
+                                                                                                 selected))
+                                                                                    extensions)
+                                                                             "guide")))))
                      :persistent-help "Select extensions"
                      :candidates (-map (lambda (x)
                                          ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
