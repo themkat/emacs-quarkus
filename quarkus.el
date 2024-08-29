@@ -119,26 +119,53 @@
                      '(item "Maven")
                      '(item "Gradle")
                      '(item "Gradle Kotlin DSL"))
+
+      (widget-insert "\nExtensions:\n")
+      (setq-local quarkus-extensions-list
+                  (widget-create 'item
+                                 ""))
+      (widget-create 'push-button
+                     :notify (lambda (&rest _ignore)
+                               (helm :sources (helm-build-sync-source "Extensions"
+                                                :action (lambda (&rest _ignore)
+                                                          (setq-local selected-extensions (helm-marked-candidates))
+                                                          (widget-value-set quarkus-extensions-list
+                                                                            (s-join "\n"
+                                                                                    (-map (lambda (x)
+                                                                                            (format " - %s" x))
+                                                                                          (helm-marked-candidates)))))
+                                                :persistent-help "Select extensions"
+                                                :candidates (-map (lambda (x)
+                                                                    ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
+                                                                    (cons (format "%-50s%s"
+                                                                                  (ht-get x "name")
+                                                                                  (s-truncate 100 (ht-get x "description")))
+                                                                          (ht-get x "id")))
+                                                                  extensions)
+                                                )
+                                     :ff-transformer-show-only-basename nil
+                                     :buffer "*Quarkus Extensions*"))
+                     "Edit extensions")
+      (widget-insert "\n(select multiple with C-SPC while in Helm buffer)\n")
       
       (widget-insert "\n")
       (widget-create 'push-button
                      :notify (lambda (&rest _ignore)
                                ;; TODO: should probably let the user select a target directory
                                ;; TODO: can probably put the download logic into its own function to clean up a bit
-                               (shell-command (format "curl -s -X POST '%s/api/download' -H \"Content-Type: application/json\" -H \"accept: */*\" -d '%s' | bsdtar -xf-"
-                                                      quarkus-code-io-url
-                                                      (json-serialize (ht ("streamKey" platform)
-                                                                          ("groupId" group-id)
-                                                                          ("artifactId" artifact-id)
-                                                                          ("version" version)
-                                                                          ("buildTool" (s-upcase (s-snake-case build-tool)))
-                                                                          ("javaVersion" java-version)
-                                                                          
-                                                                          ))
-                                                      )
-                                              (get-buffer-create "BAJS"))
-                               ;;(dired "/Users/marie")
-                               )
+                               (let ((json-body (ht ("streamKey" platform)
+                                                    ("groupId" group-id)
+                                                    ("artifactId" artifact-id)
+                                                    ("version" version)
+                                                    ("buildTool" (s-upcase (s-snake-case build-tool)))
+                                                    ("javaVersion" java-version))))
+                                 (when (not (null selected-extensions))
+                                   (ht-set! json-body "extensions" selected-extensions))
+                                 
+                                 (shell-command (format "curl -s -X POST '%s/api/download' -H \"Content-Type: application/json\" -H \"accept: */*\" -d '%s' | bsdtar -xf-"
+                                                        quarkus-code-io-url
+                                                        (json-encode json-body)))
+                                 (message "Generated project at %s/%s! Happy hacking!" default-directory artifact-id)))
                      "Generate app! ")
       (widget-setup)
       (use-local-map widget-keymap)
