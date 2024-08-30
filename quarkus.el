@@ -81,6 +81,27 @@
    "/api/extensions"
    data -> data))
 
+(defun quarkus--present-extensions (extensions add-action)
+  (helm :sources (helm-build-sync-source "Extensions"
+                   ;; TODO: should actions be configurable? Do we ever want to not have ADD as the main action?
+                   :action `(("Add extension(s)" . (lambda (&rest _ignore)
+                                                     (funcall add-action (helm-marked-candidates))))
+                             ("Open documentation" . (lambda (selected &rest _ignore)
+                                                       (browse-url (ht-get (-find (lambda (ext)
+                                                                                    (s-equals? (ht-get ext "id")
+                                                                                               selected))
+                                                                                  extensions)
+                                                                           "guide")))))
+                   :persistent-help "Select extensions"
+                   :candidates (-map (lambda (x)
+                                       ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
+                                       (cons (format "%-50s%s"
+                                                     (ht-get x "name")
+                                                     (s-truncate 100 (ht-get x "description")))
+                                             (ht-get x "id")))
+                                     extensions))
+        :buffer "*Quarkus Extensions*"))
+
 (defmacro quarkus--set-text-field (field)
   `(lambda (self &rest _ignore)
      (setq-local ,field (widget-value self))))
@@ -152,25 +173,15 @@
                                  ""))
       (widget-create 'push-button
                      :notify (lambda (&rest _ignore)
-                               (helm :sources (helm-build-sync-source "Extensions"
-                                                :action (lambda (&rest _ignore)
-                                                          (setq-local selected-extensions (helm-marked-candidates))
-                                                          (widget-value-set quarkus-extensions-list
-                                                                            (s-join "\n"
-                                                                                    (-map (lambda (x)
-                                                                                            (format " - %s" x))
-                                                                                          (helm-marked-candidates)))))
-                                                :persistent-help "Select extensions"
-                                                :candidates (-map (lambda (x)
-                                                                    ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
-                                                                    (cons (format "%-50s%s"
-                                                                                  (ht-get x "name")
-                                                                                  (s-truncate 100 (ht-get x "description")))
-                                                                          (ht-get x "id")))
-                                                                  extensions)
-                                                )
-                                     :ff-transformer-show-only-basename nil
-                                     :buffer "*Quarkus Extensions*"))
+                               (quarkus--present-extensions
+                                extensions
+                                (lambda (selected)
+                                  (setq-local selected-extensions selected)
+                                  (widget-value-set quarkus-extensions-list
+                                                    (s-join "\n"
+                                                            (-map (lambda (x)
+                                                                    (format " - %s" x))
+                                                                  selected))))))
                      "Edit extensions")
       (widget-insert "\n(select multiple with C-SPC while in Helm buffer)\n")
       
@@ -212,28 +223,14 @@
                            (error "Probably not a Quarkus project you dipshit")))
          ;; TODO: some extensions give errors, so we should filter out the ones that can be installed. Or at least check that they can be installed for our version 
          (extensions (quarkus--get-extensions)))
-    (helm :sources (helm-build-sync-source "Extensions"
-                     :action `(("Add extension(s)" . (lambda (&rest _ignore)
-                                                       (shell-command (format "cd %s && quarkus extension add %s"
-                                                                              ,project-root
-                                                                              (s-join ","
-                                                                                      (helm-marked-candidates))))
-                                                       (message "Added Quarkus extension(s)!")))
-                               ("Open documentation" . (lambda (selected &rest _ignore)
-                                                         (browse-url (ht-get (-find (lambda (ext)
-                                                                                      (s-equals? (ht-get ext "id")
-                                                                                                 selected))
-                                                                                    extensions)
-                                                                             "guide")))))
-                     :persistent-help "Select extensions"
-                     :candidates (-map (lambda (x)
-                                         ;; TODO: find a better way of presenting hints. all ways so far is fucking atrocious 
-                                         (cons (format "%-50s%s"
-                                                       (ht-get x "name")
-                                                       (s-truncate 100 (ht-get x "description")))
-                                               (ht-get x "id")))
-                                       extensions))
-          :buffer "*Quarkus Extensions*")))
+    (quarkus--present-extensions extensions
+     (lambda (selected-candidates)
+       (shell-command (format "cd %s && quarkus extension add %s"
+                              project-root
+                              (s-join ","
+                                      selected-candidates)))
+       (message "Added Quarkus extension(s)!")))))
+
 
 
 
