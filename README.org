@@ -1,0 +1,33 @@
+* Emacs Quarkus tooling
+Gives basic tooling for Quarkus work in Emacs, inspired by the IntelliJ IDEA and VSCode extensions.
+
+*Warning: Very experimental. Details might change as I commit stuff, or things might break. Ugly code while evaling code left and right inside Emacs.*
+
+
+** Features
+*** Generate project
+TODO: screenshot etc.
+
+*** Add extensions
+TODO: document and shit
+
+** Usage
+*** Installation
+This package is not yet on Melpa, so you need to install it from source. Start by cloning this repo somewhere, then add it to your load path and load it:
+#+BEGIN_SRC emacs-lisp
+  (add-to-list 'load-path "/path/to/cloned/repo")
+  (require 'quarkus)
+#+END_SRC
+
+
+
+Or just use straight use-package like a sane human being would:
+  #+BEGIN_SRC emacs-lisp
+    (use-package quarkus
+      :straight (quarkus :type git :host github :repo "themkat/emacs-quarkus"))
+#+END_SRC
+
+
+*** Interactive functions
+**** quarkus-generate-project
+**** quarkus-add-extension
