@@ -2,7 +2,7 @@
 
 ;; URL: https://github.com/themkat/emacs-quarkus
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24.4") (request "0.3.2") (ht "2.3") (helm "3.8.6") (s "1.13.0"))
+;; Package-Requires: ((emacs "24.4") (request "0.3.2") (ht "2.3") (helm "3.8.6") (dash "2.19.1") (s "1.13.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -198,12 +198,6 @@
       (switch-to-buffer creation-form))))
 
 
-;; TODO: are there any way we could complete yaml and property files?
-;; https://github.com/eclipse/lsp4mp/tree/master/microprofile.ls
-;; (can the above language server also complete yaml?)
-
-;; TODO: is requiring the quarkus cli okay here?
-
 ;; TODO: check if there is a better way than using the Quarkus CLI and parsing results.
 (defun quarkus-add-extension ()
   (interactive)
@@ -238,12 +232,10 @@
                                                        (ht-get x "name")
                                                        (s-truncate 100 (ht-get x "description")))
                                                (ht-get x "id")))
-                                       extensions)
-                     )
+                                       extensions))
           :buffer "*Quarkus Extensions*")))
 
 
-;; TODO: can we give a hint to the user that they might want to restart their lsp if it doesn't automatically listen to pom.xml changes (or the gradle alternative?)
 
 (provide 'quarkus)
 ;;; quarkus.el ends here
