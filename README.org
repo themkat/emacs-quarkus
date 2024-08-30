@@ -27,6 +27,14 @@ Or just use straight use-package like a sane human being would:
       :straight (quarkus :type git :host github :repo "themkat/emacs-quarkus"))
 #+END_SRC
 
+**** Dependencies
+This package depends on other packages, which are pulled in if installed by straight.
+- helm
+- ht
+- s.el
+- dash
+- request
+  
 
 *** Interactive functions
 **** quarkus-generate-project
