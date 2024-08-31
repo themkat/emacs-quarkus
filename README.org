@@ -17,6 +17,7 @@ Gives basic tooling for Quarkus work in Emacs, inspired by the IntelliJ IDEA and
 
 #+ATTR width: 800
 [[./screenshots/properties.png]]
+(the documentation popup on the side is from [[https://github.com/sebastiencs/company-box][company box]])
 
 To get this working, you need to do the following:
 1. Start jdtls using lsp-java inside a Java source file.
