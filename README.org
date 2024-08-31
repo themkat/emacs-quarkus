@@ -6,10 +6,25 @@ Gives basic tooling for Quarkus work in Emacs, inspired by the IntelliJ IDEA and
 
 ** Features
 *** Generate project
-TODO: screenshot etc.
+[[./screenshots/create.gif]]
 
 *** Add extensions
-TODO: document and shit
+[[./screenshots/add.gif]]
+(=auto-revert-mode= is activated in the pom.xml buffer above)
+
+*** Configures the MicroProfile Language Server for application property file completion
+*NOTE: For this to work, you NEED to run =quarkus-setup-tooling= for the tools to be downloaded. Working on possible alternatives atm...*
+
+#+ATTR width: 800
+[[./screenshots/properties.png]]
+
+To get this working, you need to do the following:
+1. Start jdtls using lsp-java inside a Java source file.
+2. Run =quarkus-fill-property-context= when jdtls has started.
+3. Navigate to a .properties file and activate =quarkus-property-mode=.
+
+
+The plan is to make it easier. Have to work around how lsp-mode works it seems...
 
 ** Usage
 *** Installation
@@ -38,4 +53,20 @@ This package depends on other packages, which are pulled in if installed by stra
 
 *** Interactive functions
 **** quarkus-generate-project
+Start it inside the directory you want to create the project in!
+
 **** quarkus-add-extension
+Can be run anywhere inside a Quarkus project.
+
+**** quarkus-setup-tooling
+*NOTE: Only necessary if you need completion and tooling in property files.*
+Downloads all tooling and puts them into the correct place.
+
+
+**** quarkus-fill-property-context
+*NOTE: Currently a little hacky, but at least it works...*
+Run from a Java file inside your project to get the property context filled in. You can then 
+
+*** Minor modes
+**** quarkus-property-mode
+Used in property files so that the MicroProfile Language Server is activated. 
