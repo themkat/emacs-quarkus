@@ -85,7 +85,7 @@
   (helm :sources (helm-build-sync-source "Extensions"
                    ;; TODO: should actions be configurable? Do we ever want to not have ADD as the main action?
                    :action `(("Add extension(s)" . (lambda (&rest _ignore)
-                                                     (funcall add-action (helm-marked-candidates))))
+                                                     (,add-action (helm-marked-candidates))))
                              ("Open documentation" . (lambda (selected &rest _ignore)
                                                        (browse-url (ht-get (-find (lambda (ext)
                                                                                     (s-equals? (ht-get ext "id")
