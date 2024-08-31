@@ -2,7 +2,7 @@
 
 ;; URL: https://github.com/themkat/emacs-quarkus
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24.4") (request "0.3.2") (ht "2.3") (helm "3.8.6") (dash "2.19.1") (s "1.13.0"))
+;; Package-Requires: ((emacs "24.4") (request "0.3.2") (ht "2.3") (helm "3.8.6") (dash "2.19.1") (s "1.13.0") (lsp-mode "9.0.0") (lsp-java "3.1"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -30,20 +30,35 @@
 (require 'dash)
 (require 'ht)
 (require 'widget)
+(require 'lsp-mode)
+(require 'lsp-java)
 
-;; Experimental quarkus.el package for providing some of the same tooling that vs code does.
-
-;; TODO: various configuration?
 (defcustom quarkus-code-io-url "https://code.quarkus.io"
   "Configure to change the default API for Quarkus information."
   :type 'string
   :group 'quarkus)
 
+(defcustom quarkus-microprofile-ls-location (f-join lsp-server-install-dir "lsp4mp")
+  "Location of the the MicroProfile Language Server installation."
+  :type 'string
+  :group 'quarkus)
 
-;; api/extensions is the path to get the extensions
-;; https://editor.swagger.io/?url=https://code.quarkus.io/q/openapi
+(defcustom quarkus-ls-location (f-join lsp-server-install-dir "quarkusls")
+  "Location of the Quarkus language server tooling."
+  :type 'string
+  :group 'quarkus)
 
-;; TODO: extension presets for generator? 
+(defcustom quarkus-microprofile-ls-download-url "https://github.com/redhat-developer/vscode-microprofile/releases/download/0.12.0/vscode-microprofile-0.12.0-159.vsix"
+  "URL for downloading the MicroProfile language server and jdtls tooling for use in property files."
+  :type 'string
+  :group 'quarkus)
+
+(defcustom quarkus-ls-tooling-download-url "https://github.com/redhat-developer/vscode-quarkus/releases/download/1.18.1/vscode-quarkus-1.18.1-139.vsix"
+  "URL for the Quarkus LSP tooling, which are additions to the MircroProfile ones."
+  :type 'string
+  :group 'quarkus)
+
+;; TODO: extension presets for generator?
 
 ;; Timeouts? (should we maybe set local the request-timeout variable or something?  or just "let" it? 
 (defmacro quarkus--get-request (url &rest processor)
@@ -208,8 +223,6 @@
       (use-local-map widget-keymap)
       (switch-to-buffer creation-form))))
 
-
-;; TODO: check if there is a better way than using the Quarkus CLI and parsing results.
 (defun quarkus-add-extension ()
   (interactive)
   (let* ((current-path (file-name-directory buffer-file-name))
@@ -232,7 +245,98 @@
        (message "Added Quarkus extension(s)!")))))
 
 
+;; Minor mode for Quarkus property files
+;; TODO: any way to support yaml???
+(define-minor-mode quarkus-property-mode
+  "Minor mode for Quarkus property files. Used mainly to activate LSP functionality."
+  :lighter "Quarkus Properties"
+  (lsp))
 
+;; LSP settings for Quarkus Property files
+(lsp-register-custom-settings
+ '(("microprofile.tools.trace.server" "verbose" t)
+   ("microprofile.tools.server.vmargs" "-Xmx64M -XX:+UseG1GC -XX:+UseStringDeduplication -Xlog:disable" t)))
+
+;; Variable for caching context for properties inside projects
+;; (yes, it is hacky. Better than nothing)
+;; TODO: actually clean up
+(defvar quarkus-projects-property-lookup (ht))
+
+;; Use JDTLs extensions to populate property context to get property completion
+;; TODO: see if a delegation to jdtls like vscode does is actually possible. Was not able to start jdtls inside a properties buffer so this would work automatically.
+(defun quarkus-fill-property-context ()
+  (interactive)
+  (ht-set quarkus-projects-property-lookup
+          (lsp-workspace-root)
+          (lsp-request
+           "workspace/executeCommand"
+           (list :command "microprofile/projectInfo"
+                 :arguments (list :uri (lsp--buffer-uri)
+                                  :classpathKind 2
+                                  :scopes (vector 1 2))))))
+
+(defun quarkus--microprofile-send-project-info (&rest _)
+  (ht-get quarkus-projects-property-lookup
+          (lsp-workspace-root)))
+
+;; Newer versions of lsp4mp and quarkus jdtls extension tooling requires newer jdtls version than lsp-java provides:
+(setq lsp-java-jdt-download-url "https://download.eclipse.org/jdtls/milestones/1.39.0/jdt-language-server-1.39.0-202408291433.tar.gz")
+
+;; TODO: see if we can use the internal lsp-dependency thingy instead
+(defun quarkus-setup-tooling ()
+  "Sets up the Quarkus tooling so completion and other things work inside Emacs."
+  (interactive)
+  (let ((tmp-zip-file (make-temp-file "mp" nil ".zip"))
+        (tmp-zip-file2 (make-temp-file "quarkus" nil ".zip")))
+    (lsp-download-install
+     (lambda (&rest _ignore)
+       (lsp-unzip tmp-zip-file quarkus-microprofile-ls-location)
+       ;; ugly hack  to download one after the other
+       (lsp-download-install
+        (lambda (&rest _ignore)
+          (lsp-unzip tmp-zip-file quarkus-ls-location))
+        (lambda (&rest _ignore)
+          (error "Failed to download Quarkus dependency"))
+        :url quarkus-ls-tooling-download-url
+        :store-path tmp-zip-file2))
+     (lambda (&rest _ignore)
+       (error "Failed to download MicroProfile dependency"))
+     :url quarkus-microprofile-ls-download-url
+     :store-path tmp-zip-file)))
+
+(lsp-register-client
+ (make-lsp--client
+  :priority -1
+  :server-id 'lsp4mp
+  :add-on? t
+  :activation-fn (lambda (&rest _ignore)
+                   (bound-and-true-p quarkus-property-mode))
+  :new-connection
+  (lsp-stdio-connection
+   (lambda ()
+     (list "java"
+           "-cp"
+           (s-join ":" (list (f-join quarkus-microprofile-ls-location "extension/server/org.eclipse.lsp4mp.ls-uber.jar")
+                             (f-join quarkus-ls-location "extension/server/com.redhat.quarkus.ls.jar")))
+           "org.eclipse.lsp4mp.ls.MicroProfileServerLauncher"))
+   (lambda ()
+     (f-exists? (f-join quarkus-microprofile-ls-location "extension/server/org.eclipse.lsp4mp.ls-uber.jar"))))
+  :initialized-fn (lambda (workspace)
+                    (with-lsp-workspace workspace
+                      (lsp--set-configuration (lsp-configuration-section "microprofile"))))
+  :request-handlers (lsp-ht ("microprofile/projectInfo" #'quarkus--microprofile-send-project-info))))
+
+;; TODO: any way we can check if we are inside a quarkus project? 
+;; extensions are set through the bundles keyword:
+(add-hook 'lsp-before-open-hook
+          (lambda ()
+            (setq lsp-java-bundles
+                  (list (f-join quarkus-microprofile-ls-location "extension/jars/org.eclipse.lsp4mp.jdt.core.jar")
+                        (f-join quarkus-microprofile-ls-location "extension/jars/io.smallrye.common.smallrye-common-constraint.jar")
+                        (f-join quarkus-microprofile-ls-location "extension/jars/io.smallrye.common.smallrye-common-expression.jar")
+                        (f-join quarkus-microprofile-ls-location "extension/jars/io.smallrye.common.smallrye-common-function.jar")
+                        (f-join quarkus-microprofile-ls-location "extension/jars/org.jboss.logging.jboss-logging.jar")
+                        (f-join quarkus-ls-location "extension/jars/com.redhat.microprofile.jdt.quarkus.jar")))))
 
 (provide 'quarkus)
 ;;; quarkus.el ends here
